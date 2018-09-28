@@ -2,7 +2,7 @@
 //Released under MIT License
 //license available in LICENSE file, or at http://www.opensource.org/licenses/mit-license.php
 
-#include"cnpy.h"
+#include"cnpy.hpp"
 #include<complex>
 #include<cstdlib>
 #include<algorithm>
@@ -187,56 +187,6 @@ cnpy::NpyArray load_the_npy_file(FILE* fp) {
     return arr;
 }
 
-
-cnpy::NpyArray cnpy::npz_load(std::string fname, std::string varname) {
-    FILE* fp = fopen(fname.c_str(),"rb");
-
-    if(!fp) {
-        printf("npz_load: Error! Unable to open file %s!\n",fname.c_str());
-        abort();
-    }       
-
-    while(1) {
-        std::vector<char> local_header(30);
-        size_t header_res = fread(&local_header[0],sizeof(char),30,fp);
-        if(header_res != 30)
-            throw std::runtime_error("npz_load: failed fread");
-
-        //if we've reached the global header, stop reading
-        if(local_header[2] != 0x03 || local_header[3] != 0x04) break;
-
-        //read in the variable name
-        uint16_t name_len = *(uint16_t*) &local_header[26];
-        std::string vname(name_len,' ');
-        size_t vname_res = fread(&vname[0],sizeof(char),name_len,fp);      
-        if(vname_res != name_len)
-            throw std::runtime_error("npz_load: failed fread");
-        vname.erase(vname.end()-4,vname.end()); //erase the lagging .npy
-
-        //read in the extra field
-        uint16_t extra_field_len = *(uint16_t*) &local_header[28];
-        fseek(fp,extra_field_len,SEEK_CUR); //skip past the extra field
-        
-        uint16_t compr_method = *reinterpret_cast<uint16_t*>(&local_header[0]+8);
-        uint32_t compr_bytes = *reinterpret_cast<uint32_t*>(&local_header[0]+18);
-        uint32_t uncompr_bytes = *reinterpret_cast<uint32_t*>(&local_header[0]+22);
-
-        if(vname == varname) {
-            NpyArray array  = (compr_method == 0) ? load_the_npy_file(fp) : load_the_npz_array(fp,compr_bytes,uncompr_bytes);
-            fclose(fp);
-            return array;
-        }
-        else {
-            //skip past the data
-            size_t size = *(uint32_t*) &local_header[22];
-            fseek(fp,size,SEEK_CUR);
-        }
-    }
-
-    fclose(fp);
-    printf("npz_load: Error! Variable name %s not found in %s!\n",varname.c_str(),fname.c_str());
-    abort();
-}
 
 cnpy::NpyArray cnpy::npy_load(std::string fname) {
 
